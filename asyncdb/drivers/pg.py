@@ -1501,6 +1501,45 @@ class pg(SQLDriver, DBCursorBackend, ModelBackend):
                 f"Error: Model GET over {table}: {e}"
             ) from e
 
+    async def _filterOrm_(self, _model: Model, *args, **kwargs):
+        """
+        Filter a Model using Fields.
+        """
+        try:
+            schema = ''
+            sc = _model.Meta.schema
+            if sc:
+                schema = f"{sc}."
+            table = f"{schema}{_model.Meta.name}"
+        except AttributeError:
+            table = _model.__name__
+        fields = _model.columns(_model)
+        _filter = {}
+        if args:
+            columns = ','.join(args)
+        else:
+            columns = '*'
+        for name, field in fields.items():
+            if name in kwargs:
+                try:
+                    val = kwargs[name]
+                except AttributeError:
+                    continue
+                ## getting the value of column:
+                datatype = field.type
+                value = Entity.toSQL(val, datatype)
+                _filter[name] = value
+        condition = self._where(fields, **_filter)
+        _get = f"SELECT {columns} FROM {table} {condition}"
+        try:
+            result = await self._connection.fetch(_get)
+            return result
+        except Exception as e:
+            raise ProviderError(
+                f"Error: Model GET over {table}: {e}"
+            ) from e
+
+
     async def _select_(self, *args, **kwargs):
         """
         Get a query from Model.

@@ -388,6 +388,40 @@ class Model(BaseModel):
                 f"Error on filter {cls.Meta.name}: {err}"
             ) from err
 
+    async def filterOrm(cls, *args, **kwargs):
+        """
+        Need to return a ***collection*** of nested DataClasses
+        """
+        if not cls.Meta.connection:
+            raise ConnectionMissing(
+                f"Missing Connection for Model: {cls}"
+            )
+        result = []
+        try:
+            result = await cls.Meta.connection._filterOrm_(
+                _model=cls, *args, **kwargs
+            )
+            if result:
+                return [cls(**dict(r)) for r in result]
+            else:
+                return []
+        except ValidationError:
+            raise
+        except NoDataFound:
+            raise
+        except (AttributeError, StatementError) as err:
+            raise StatementError(
+                f"Error on Attribute {cls.Meta.name}: {err}"
+            ) from err
+        except ProviderError:
+            raise
+        except Exception as err:
+            logging.debug(traceback.format_exc())
+            raise Exception(
+                f"Error on filter {cls.Meta.name}: {err}"
+            ) from err
+
+
     @classmethod
     async def get(cls, **kwargs):
         """
